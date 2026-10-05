@@ -9,6 +9,7 @@ interface ProjectModalFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (project: Project) => void;
+  onDelete?: (id: string) => void;
   initialData?: Project | null;
 }
 
@@ -16,6 +17,7 @@ export const ProjectModalForm: React.FC<ProjectModalFormProps> = ({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   initialData
 }) => {
   const generateRandomSONumber = () => {
@@ -139,6 +141,22 @@ export const ProjectModalForm: React.FC<ProjectModalFormProps> = ({
           </div>
 
           <div className="flex items-center gap-3 self-end sm:self-auto">
+            {initialData && onDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`ยืนยันการลบโครงการ ${formData.projectName || formData.projectCode} ออกจากระบบและ Firebase หรือไม่?`)) {
+                    onDelete(formData.id);
+                    onClose();
+                  }
+                }}
+                className="px-3.5 py-2 text-xs font-bold text-rose-400 hover:text-white bg-rose-950/60 hover:bg-rose-600 rounded-xl transition-colors border border-rose-800 flex items-center gap-1.5"
+                title="ลบโครงการนี้ออกจากระบบและ Firebase"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>ลบโครงการนี้</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}

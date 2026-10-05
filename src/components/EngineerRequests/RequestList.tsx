@@ -240,6 +240,7 @@ export const RequestList: React.FC<RequestListProps> = ({
           onEdit={onEdit}
           onPrint={onPrint}
           onSaveRequest={onSaveRequest}
+          onDelete={onDelete}
         />
       )}
 
@@ -558,29 +559,29 @@ export const RequestList: React.FC<RequestListProps> = ({
 
                         {/* Actions */}
                         <td className="py-3 px-3 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1">
+                          <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => onPrint(req)}
                               title="พิมพ์ใบคำขอและรายงาน (Print A4 Form)"
-                              className="p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
+                              className="p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200 cursor-pointer"
                             >
                               <Printer className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => onEdit(req)}
                               title="เปิดแก้ไขและบันทึกรายละเอียดคำขอ"
-                              className="p-1.5 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
+                              className="p-1.5 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 cursor-pointer"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => {
-                                if (window.confirm(`ยืนยันการลบใบคำขอ ${req.documentNo} หรือไม่?`)) {
+                                if (window.confirm(`ยืนยันการลบใบคำขอ ${req.documentNo} (${req.projectName}) ออกจากระบบอย่างถาวรหรือไม่?`)) {
                                   onDelete(req.id);
                                 }
                               }}
-                              title="ลบใบคำขอ"
-                              className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
+                              title="ลบใบคำขอนี้ออกจากระบบอย่างถาวร (Permanent Delete)"
+                              className="p-1.5 text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 rounded-lg transition-all border border-rose-200 hover:border-rose-600 cursor-pointer shadow-xs active:scale-90"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

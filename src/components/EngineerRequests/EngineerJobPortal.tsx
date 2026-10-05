@@ -4,7 +4,7 @@ import {
   CheckCircle2, Clock, MapPin, Phone, Mail, FileText, 
   Printer, Edit2, AlertTriangle, UserCheck, Check, Navigation,
   Calendar, ShieldAlert, Sparkles, Building, ExternalLink,
-  Download, Search, Filter, Car
+  Download, Search, Filter, Car, Trash2
 } from 'lucide-react';
 
 interface EngineerJobPortalProps {
@@ -12,13 +12,15 @@ interface EngineerJobPortalProps {
   onEdit: (req: EngineerRequest) => void;
   onPrint: (req: EngineerRequest) => void;
   onSaveRequest: (req: EngineerRequest) => void;
+  onDelete?: (id: string) => void;
 }
 
 export const EngineerJobPortal: React.FC<EngineerJobPortalProps> = ({
   requests,
   onEdit,
   onPrint,
-  onSaveRequest
+  onSaveRequest,
+  onDelete
 }) => {
   const [selectedEngineer, setSelectedEngineer] = useState<string>('all');
   const [jobStatusFilter, setJobStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all');
@@ -484,6 +486,19 @@ export const EngineerJobPortal: React.FC<EngineerJobPortalProps> = ({
                         >
                           <Printer className="w-3.5 h-3.5" />
                         </button>
+                        {onDelete && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`ยืนยันการลบใบคำขอ ${req.documentNo} ออกจากระบบและ Firebase หรือไม่?`)) {
+                                onDelete(req.id);
+                              }
+                            }}
+                            title="ลบใบคำขอนี้ออกจากระบบและ Firebase"
+                            className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
 

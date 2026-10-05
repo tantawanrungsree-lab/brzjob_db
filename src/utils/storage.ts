@@ -7,45 +7,29 @@ const MASTER_REQUESTS_KEY = 'lumencraft_master_requests_db_v2';
 const BACKUP_PROJECTS_KEY = 'lumencraft_backup_projects_db_v2';
 const BACKUP_REQUESTS_KEY = 'lumencraft_backup_requests_db_v2';
 
-// Legacy keys for backward-compatibility migration
-const LEGACY_PROJECTS_KEY = 'lumencraft_projects_v1';
-const LEGACY_REQUESTS_KEY = 'lumencraft_requests_v1';
-
 /**
- * Load Projects from Unified Master Storage with safe backup fallback
+ * Load Projects from Unified Master Storage with safe fallback
  */
 export function loadProjects(): Project[] {
   try {
-    // 1. Try master storage
     const raw = localStorage.getItem(MASTER_PROJECTS_KEY);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
 
-    // 2. Try legacy storage
-    const legacyRaw = localStorage.getItem(LEGACY_PROJECTS_KEY);
-    if (legacyRaw) {
-      const parsedLegacy = JSON.parse(legacyRaw);
-      if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
-        saveProjects(parsedLegacy);
-        return parsedLegacy;
-      }
-    }
-
-    // 3. Try backup storage
     const backupRaw = localStorage.getItem(BACKUP_PROJECTS_KEY);
-    if (backupRaw) {
+    if (backupRaw !== null) {
       const parsedBackup = JSON.parse(backupRaw);
-      if (Array.isArray(parsedBackup) && parsedBackup.length > 0) {
+      if (Array.isArray(parsedBackup)) {
         saveProjects(parsedBackup);
         return parsedBackup;
       }
     }
 
-    // 4. Fallback to Initial Seed Data and immediately persist
+    // First time initialization
     saveProjects(INITIAL_PROJECTS);
     return INITIAL_PROJECTS;
   } catch (err) {
@@ -55,56 +39,42 @@ export function loadProjects(): Project[] {
 }
 
 /**
- * Save Projects to Unified Master Storage and maintain automated backup
+ * Save Projects to Unified Master Storage
  */
 export function saveProjects(projects: Project[]): void {
   try {
     if (!Array.isArray(projects)) return;
     const serialized = JSON.stringify(projects);
     localStorage.setItem(MASTER_PROJECTS_KEY, serialized);
-    if (projects.length > 0) {
-      localStorage.setItem(BACKUP_PROJECTS_KEY, serialized);
-    }
+    localStorage.setItem(BACKUP_PROJECTS_KEY, serialized);
   } catch (err) {
     console.error('Failed to save master projects:', err);
   }
 }
 
 /**
- * Load Requests from Unified Master Storage with safe backup fallback
+ * Load Requests from Unified Master Storage with safe fallback
  */
 export function loadRequests(): EngineerRequest[] {
   try {
-    // 1. Try master storage
     const raw = localStorage.getItem(MASTER_REQUESTS_KEY);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
 
-    // 2. Try legacy storage
-    const legacyRaw = localStorage.getItem(LEGACY_REQUESTS_KEY);
-    if (legacyRaw) {
-      const parsedLegacy = JSON.parse(legacyRaw);
-      if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
-        saveRequests(parsedLegacy);
-        return parsedLegacy;
-      }
-    }
-
-    // 3. Try backup storage
     const backupRaw = localStorage.getItem(BACKUP_REQUESTS_KEY);
-    if (backupRaw) {
+    if (backupRaw !== null) {
       const parsedBackup = JSON.parse(backupRaw);
-      if (Array.isArray(parsedBackup) && parsedBackup.length > 0) {
+      if (Array.isArray(parsedBackup)) {
         saveRequests(parsedBackup);
         return parsedBackup;
       }
     }
 
-    // 4. Fallback to Initial Seed Data and immediately persist
+    // First time initialization
     saveRequests(INITIAL_REQUESTS);
     return INITIAL_REQUESTS;
   } catch (err) {
@@ -114,16 +84,14 @@ export function loadRequests(): EngineerRequest[] {
 }
 
 /**
- * Save Requests to Unified Master Storage and maintain automated backup
+ * Save Requests to Unified Master Storage
  */
 export function saveRequests(requests: EngineerRequest[]): void {
   try {
     if (!Array.isArray(requests)) return;
     const serialized = JSON.stringify(requests);
     localStorage.setItem(MASTER_REQUESTS_KEY, serialized);
-    if (requests.length > 0) {
-      localStorage.setItem(BACKUP_REQUESTS_KEY, serialized);
-    }
+    localStorage.setItem(BACKUP_REQUESTS_KEY, serialized);
   } catch (err) {
     console.error('Failed to save master requests:', err);
   }
@@ -148,17 +116,27 @@ export function mergeRequestData(existingReq: EngineerRequest, updatedReq: Parti
       ...existingReq.signOff,
       ...(updatedReq.signOff || {})
     },
-    photos: updatedReq.photos || existingReq.photos || [],
-    parts: updatedReq.parts || existingReq.parts || [],
-    measurements: updatedReq.measurements || existingReq.measurements || []
+    updatedAt: new Date().toISOString()
   };
 }
 
 /**
- * Reset All Data to Standard Clean Master Dataset
+ * Reset all data to factory initial state
  */
 export function resetAllData(): { projects: Project[]; requests: EngineerRequest[] } {
-  saveProjects(INITIAL_PROJECTS);
-  saveRequests(INITIAL_REQUESTS);
-  return { projects: INITIAL_PROJECTS, requests: INITIAL_REQUESTS };
+  try {
+    localStorage.removeItem('lumencraft_cloud_seeded_v2');
+    saveProjects(INITIAL_PROJECTS);
+    saveRequests(INITIAL_REQUESTS);
+    return {
+      projects: INITIAL_PROJECTS,
+      requests: INITIAL_REQUESTS
+    };
+  } catch (err) {
+    console.error('Failed to reset data:', err);
+    return {
+      projects: INITIAL_PROJECTS,
+      requests: INITIAL_REQUESTS
+    };
+  }
 }

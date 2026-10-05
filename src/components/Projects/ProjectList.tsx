@@ -682,12 +682,12 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm(`ยืนยันการลบโครงการ ${p.projectName} (${p.projectCode}) หรือไม่?`)) {
+                            if (window.confirm(`ยืนยันการลบโครงการ ${p.projectName} (${p.projectCode}) ออกจากระบบอย่างถาวรหรือไม่?`)) {
                               onDelete(p.id);
                             }
                           }}
-                          title="ลบโครงการ"
-                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
+                          title="ลบโครงการนี้ออกจากระบบอย่างถาวร (Permanent Delete)"
+                          className="p-1.5 text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 rounded-lg transition-all border border-rose-200 hover:border-rose-600 cursor-pointer shadow-xs active:scale-90"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

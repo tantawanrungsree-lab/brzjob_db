@@ -6,6 +6,19 @@
 import React, { useState, useEffect } from 'react';
 import { ActiveView, EngineerRequest, Project } from './types';
 import { loadProjects, saveProjects, loadRequests, saveRequests, resetAllData, mergeRequestData } from './utils/storage';
+import { 
+  testFirestoreConnection, 
+  subscribeToRequests, 
+  subscribeToProjects, 
+  saveRequestToFirestore, 
+  deleteRequestFromFirestore, 
+  saveProjectToFirestore, 
+  deleteProjectFromFirestore, 
+  seedInitialDataToFirebase,
+  syncAllDataToFirebase
+} from './services/firebase';
+import { AppUser, subscribeToAuth, signOutUser, getStoredUser } from './services/auth';
+import { GoogleLoginModal } from './components/Auth/GoogleLoginModal';
 import { Navbar } from './components/Navbar';
 import { HomeHero } from './components/HomeHero';
 import { RequestList } from './components/EngineerRequests/RequestList';
@@ -20,6 +33,10 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>(loadProjects);
   const [requests, setRequests] = useState<EngineerRequest[]>(loadRequests);
 
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(getStoredUser);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
   // Modals state
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<EngineerRequest | null>(null);
@@ -31,7 +48,53 @@ export default function App() {
 
   const [printingRequest, setPrintingRequest] = useState<EngineerRequest | null>(null);
 
-  // Sync state to Unified Master LocalStorage
+  // Subscribe to Auth State
+  useEffect(() => {
+    const unsubAuth = subscribeToAuth((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubAuth();
+  }, []);
+
+  // Initialize Firebase Firestore connection, seed data and subscribe to real-time sync
+  useEffect(() => {
+    let unsubRequests: (() => void) | undefined;
+    let unsubProjects: (() => void) | undefined;
+
+    const initFirebase = async () => {
+      // 1. Validate connection
+      await testFirestoreConnection();
+
+      // 2. Seed initial data to Firestore if cloud collection is empty
+      const initialProjects = loadProjects();
+      const initialRequests = loadRequests();
+      await seedInitialDataToFirebase(initialProjects, initialRequests);
+
+      // 3. Real-time subscriptions across all users
+      unsubRequests = subscribeToRequests((firestoreRequests) => {
+        if (Array.isArray(firestoreRequests)) {
+          setRequests(firestoreRequests);
+          saveRequests(firestoreRequests);
+        }
+      });
+
+      unsubProjects = subscribeToProjects((firestoreProjects) => {
+        if (Array.isArray(firestoreProjects)) {
+          setProjects(firestoreProjects);
+          saveProjects(firestoreProjects);
+        }
+      });
+    };
+
+    initFirebase();
+
+    return () => {
+      if (unsubRequests) unsubRequests();
+      if (unsubProjects) unsubProjects();
+    };
+  }, []);
+
+  // Sync state to local storage cache for instant offline responsiveness
   useEffect(() => {
     saveProjects(projects);
   }, [projects]);
@@ -40,28 +103,7 @@ export default function App() {
     saveRequests(requests);
   }, [requests]);
 
-  // Listen for Cross-Tab / Cross-Session storage changes so all users see unified real-time data
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'lumencraft_master_projects_db_v2' && e.newValue) {
-        try {
-          const updatedProjects = JSON.parse(e.newValue);
-          if (Array.isArray(updatedProjects)) setProjects(updatedProjects);
-        } catch {}
-      }
-      if (e.key === 'lumencraft_master_requests_db_v2' && e.newValue) {
-        try {
-          const updatedRequests = JSON.parse(e.newValue);
-          if (Array.isArray(updatedRequests)) setRequests(updatedRequests);
-        } catch {}
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  // Request Handlers - Non-Destructive Safe Update
+  // Request Handlers - Live Firestore Sync
   const handleOpenNewRequest = (projectId?: string) => {
     setEditingRequest(null);
     setPreselectedProjectId(projectId);
@@ -75,18 +117,29 @@ export default function App() {
   };
 
   const handleSaveRequest = (savedReq: EngineerRequest) => {
+    let updatedList: EngineerRequest[] = [];
     setRequests(prev => {
       const existing = prev.find(r => r.id === savedReq.id);
       if (existing) {
         const merged = mergeRequestData(existing, savedReq);
-        return prev.map(r => r.id === savedReq.id ? merged : r);
+        updatedList = prev.map(r => r.id === savedReq.id ? merged : r);
+        return updatedList;
       }
-      return [savedReq, ...prev];
+      updatedList = [savedReq, ...prev];
+      return updatedList;
     });
+
+    // Save directly to Firebase Firestore
+    saveRequestToFirestore(savedReq);
   };
 
-  const handleDeleteRequest = (id: string) => {
-    setRequests(prev => prev.filter(r => r.id !== id));
+  const handleDeleteRequest = async (id: string) => {
+    setRequests(prev => {
+      const updated = prev.filter(r => r.id !== id);
+      saveRequests(updated);
+      return updated;
+    });
+    await deleteRequestFromFirestore(id);
   };
 
   const handlePrintRequest = (req: EngineerRequest) => {
@@ -94,7 +147,7 @@ export default function App() {
     setActiveView('print-request');
   };
 
-  // Project Handlers
+  // Project Handlers - Live Firestore Sync
   const handleOpenNewProject = () => {
     setEditingProject(null);
     setIsProjectModalOpen(true);
@@ -122,44 +175,68 @@ export default function App() {
     if (viewingProject && viewingProject.id === savedProj.id) {
       setViewingProject(savedProj);
     }
+
+    // Save directly to Firebase Firestore
+    saveProjectToFirestore(savedProj);
   };
 
-  const handleDeleteProject = (id: string) => {
-    setProjects(prev => prev.filter(p => p.id !== id));
+  const handleDeleteProject = async (id: string) => {
+    setProjects(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      saveProjects(updated);
+      return updated;
+    });
     if (viewingProject && viewingProject.id === id) {
       setViewingProject(null);
     }
+    await deleteProjectFromFirestore(id);
+  };
+
+  const handleManualSyncAll = async () => {
+    await syncAllDataToFirebase(projects, requests);
   };
 
   const handleResetData = () => {
-    if (window.confirm('ต้องการรีเซ็ตข้อมูลทั้งหมดกลับเป็นค่าเริ่มต้นใช่หรือไม่?')) {
-      const { projects: resetProjects, requests: resetRequests } = resetAllData();
-      setProjects(resetProjects);
-      setRequests(resetRequests);
+    if (window.confirm('คำเตือน: คุณต้องการรีเซ็ตข้อมูลทั้งหมดกลับสู่ค่าเริ่มต้นจากโรงงานหรือไม่?')) {
+      const reset = resetAllData();
+      setProjects(reset.projects);
+      setRequests(reset.requests);
+      syncAllDataToFirebase(reset.projects, reset.requests);
     }
   };
 
+  const handleSignOut = async () => {
+    await signOutUser();
+    setCurrentUser(null);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans selection:bg-amber-400 selection:text-slate-900">
       
-      {/* Top Navigation */}
-      <Navbar
-        activeView={activeView}
-        setActiveView={setActiveView}
-        onNewRequest={() => handleOpenNewRequest()}
-        onNewProject={handleOpenNewProject}
-        onResetData={handleResetData}
-        requestCount={requests.length}
-        projectCount={projects.length}
-      />
+      {/* Top Navigation Bar */}
+      {activeView !== 'print-request' && (
+        <Navbar
+          activeView={activeView}
+          setActiveView={setActiveView}
+          onNewRequest={() => handleOpenNewRequest()}
+          onNewProject={handleOpenNewProject}
+          onResetData={handleResetData}
+          onSyncToFirebase={handleManualSyncAll}
+          requestCount={requests.length}
+          projectCount={projects.length}
+          currentUser={currentUser}
+          onOpenLogin={() => setIsLoginModalOpen(true)}
+          onSignOut={handleSignOut}
+        />
+      )}
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-[99%] mx-auto px-3 sm:px-6 py-5 sm:py-6">
+      <main className="flex-1 max-w-[99%] mx-auto w-full px-3 sm:px-6 lg:px-8 py-6">
         
-        {/* VIEW 1: HOME (Featuring the 2 Main Buttons) */}
+        {/* VIEW 1: HOME DASHBOARD */}
         {activeView === 'home' && (
           <HomeHero
-            onNavigate={setActiveView}
+            onNavigate={(view) => setActiveView(view)}
             requests={requests}
             projects={projects}
             onOpenRequest={handleEditRequest}
@@ -169,7 +246,7 @@ export default function App() {
           />
         )}
 
-        {/* VIEW 2: ENGINEER REQUESTS (ตารางงาน On Site, Meeting, Mock-Up, Site Survey, Installation, นับแบบ, Claim, QC) */}
+        {/* VIEW 2: ENGINEER JOB REQUEST LIST */}
         {activeView === 'requests' && (
           <RequestList
             requests={requests}
@@ -177,17 +254,18 @@ export default function App() {
             onEdit={handleEditRequest}
             onPrint={handlePrintRequest}
             onDelete={handleDeleteRequest}
-            onSaveRequest={handleSaveRequest}
-            onSelectProject={(projId) => {
-              const p = projects.find(proj => proj.id === projId);
+            onSelectProject={(projectId) => {
+              const p = projects.find(item => item.id === projectId);
               if (p) {
                 setViewingProject(p);
+                setActiveView('projects');
               }
             }}
+            onSaveRequest={handleSaveRequest}
           />
         )}
 
-        {/* VIEW 3: PROJECTS (Project Code, SO No., Project Name, Customer Name, E-mail, Phone, Engineer Name, Sales, Status) */}
+        {/* VIEW 3: BRZ PROJECT DIRECTORY */}
         {activeView === 'projects' && (
           <ProjectList
             projects={projects}
@@ -196,11 +274,11 @@ export default function App() {
             onEdit={handleEditProject}
             onView={handleViewProject}
             onDelete={handleDeleteProject}
-            onCreateRequestForProject={(projId) => handleOpenNewRequest(projId)}
+            onCreateRequestForProject={(projectId) => handleOpenNewRequest(projectId)}
           />
         )}
 
-        {/* VIEW 4: PRINT SERVICE REQUEST (Official LUMENCRAFT 3-Page Document) */}
+        {/* VIEW 4: OFFICIAL PRINT DOCUMENT (A4) */}
         {activeView === 'print-request' && printingRequest && (
           <ServiceRequestPrintDocument
             request={printingRequest}
@@ -210,54 +288,86 @@ export default function App() {
 
       </main>
 
-      {/* Request Create/Edit Modal */}
+      {/* Universal Request Modal Form */}
       <RequestModalForm
         isOpen={isRequestModalOpen}
-        onClose={() => setIsRequestModalOpen(false)}
+        onClose={() => {
+          setIsRequestModalOpen(false);
+          setEditingRequest(null);
+          setPreselectedProjectId(undefined);
+        }}
         onSave={handleSaveRequest}
+        onDelete={handleDeleteRequest}
         initialData={editingRequest}
-        projects={projects}
         preselectedProjectId={preselectedProjectId}
+        projects={projects}
       />
 
-      {/* Project Create/Edit Modal */}
+      {/* Universal Project Modal Form (Full-Screen Modal) */}
       <ProjectModalForm
         isOpen={isProjectModalOpen}
-        onClose={() => setIsProjectModalOpen(false)}
+        onClose={() => {
+          setIsProjectModalOpen(false);
+          setEditingProject(null);
+        }}
         onSave={handleSaveProject}
+        onDelete={handleDeleteProject}
         initialData={editingProject}
       />
 
-      {/* Project Detail Drawer / Modal */}
-      <ProjectDetailModal
-        project={viewingProject}
-        requests={requests}
-        isOpen={!!viewingProject}
-        onClose={() => setViewingProject(null)}
-        onEditProject={(p) => {
-          setViewingProject(null);
-          handleEditProject(p);
-        }}
-        onCreateRequestForProject={(pId) => {
-          handleOpenNewRequest(pId);
-        }}
-        onViewRequest={(req) => {
-          handleEditRequest(req);
-        }}
-        onPrintRequest={(req) => {
-          handlePrintRequest(req);
+      {/* Universal Project Detail & Gantt Modal */}
+      {viewingProject && (
+        <ProjectDetailModal
+          project={viewingProject}
+          requests={requests}
+          isOpen={!!viewingProject}
+          onClose={() => setViewingProject(null)}
+          onEditProject={(proj) => {
+            setEditingProject(proj);
+            setIsProjectModalOpen(true);
+          }}
+          onCreateRequestForProject={(projectId) => {
+            setViewingProject(null);
+            handleOpenNewRequest(projectId);
+          }}
+          onViewRequest={(req) => {
+            setViewingProject(null);
+            handleEditRequest(req);
+          }}
+          onPrintRequest={(req) => {
+            setViewingProject(null);
+            handlePrintRequest(req);
+          }}
+          onDeleteProject={handleDeleteProject}
+          onDeleteRequest={handleDeleteRequest}
+        />
+      )}
+
+      {/* Google / Gmail Sign-In Modal */}
+      <GoogleLoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
         }}
       />
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 no-print mt-auto">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono-data">
-          <div>LUMENCRAFT ENGINEERING & SERVICE MANAGEMENT SYSTEM</div>
-          <div className="text-[11px] text-slate-400">
-            Compliant with LUMENCRAFT Controlled Service Document Form (Rev. 2026)
+      {/* Universal Footer */}
+      {activeView !== 'print-request' && (
+        <footer className="bg-slate-900 border-t border-slate-800 text-slate-400 py-6 text-xs text-center no-print mt-auto">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-200">LUMENCRAFT ENGINEERING PORTAL</span>
+              <span>•</span>
+              <span>Lumencraft Co., Ltd. (Thailand)</span>
+            </div>
+            <div className="text-slate-400 font-mono text-[11px] flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
+              <span>FIREBASE CLOUD DATABASE CONNECTED</span>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      )}
 
     </div>
   );

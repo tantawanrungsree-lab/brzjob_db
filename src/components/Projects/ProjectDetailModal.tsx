@@ -6,7 +6,8 @@ import {
   CheckCircle2, AlertTriangle, AlertCircle, Wrench, ShieldAlert,
   Layers, CheckSquare, Sparkles, ArrowRight, ArrowUpRight, BarChart3, 
   PackageCheck, DollarSign, Fuel, Hotel, Timer, Receipt, TrendingUp,
-  CreditCard, Wallet, Car, FileSpreadsheet, Download, Filter, Search
+  CreditCard, Wallet, Car, FileSpreadsheet, Download, Filter, Search,
+  Trash2
 } from 'lucide-react';
 import { MicrosoftProjectGantt } from './MicrosoftProjectGantt';
 
@@ -19,6 +20,8 @@ interface ProjectDetailModalProps {
   onCreateRequestForProject: (projectId: string) => void;
   onViewRequest: (req: EngineerRequest) => void;
   onPrintRequest: (req: EngineerRequest) => void;
+  onDeleteProject?: (id: string) => void;
+  onDeleteRequest?: (id: string) => void;
 }
 
 export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
@@ -29,7 +32,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   onEditProject,
   onCreateRequestForProject,
   onViewRequest,
-  onPrintRequest
+  onPrintRequest,
+  onDeleteProject,
+  onDeleteRequest
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'expenses' | 'requests' | 'claims'>('overview');
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
@@ -261,6 +266,20 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             >
               <Edit2 className="w-4 h-4" />
             </button>
+            {onDeleteProject && (
+              <button
+                onClick={() => {
+                  if (window.confirm(`ยืนยันการลบโครงการ ${project.projectName} (${project.projectCode}) ออกจากระบบและ Firebase หรือไม่?`)) {
+                    onDeleteProject(project.id);
+                    onClose();
+                  }
+                }}
+                className="p-2 rounded-xl text-rose-400 hover:text-white hover:bg-rose-600 transition-colors border border-rose-800/80 bg-rose-950/40"
+                title="ลบโครงการนี้ออกจากระบบและ Firebase"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={onClose}
               className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
@@ -897,7 +916,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                 <button
                                   onClick={() => onPrintRequest(req)}
                                   title="พิมพ์ใบคำขอ Lumencraft A4"
-                                  className="p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                                  className="p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
                                 >
                                   <Printer className="w-3.5 h-3.5" />
                                 </button>
@@ -907,6 +926,19 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                                 >
                                   ดู / แก้ไข
                                 </button>
+                                {onDeleteRequest && (
+                                  <button
+                                    onClick={() => {
+                                      if (window.confirm(`ยืนยันการลบใบคำขอ ${req.documentNo} หรือไม่?`)) {
+                                        onDeleteRequest(req.id);
+                                      }
+                                    }}
+                                    title="ลบใบคำขอนี้ออกจากระบบและ Firebase"
+                                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>

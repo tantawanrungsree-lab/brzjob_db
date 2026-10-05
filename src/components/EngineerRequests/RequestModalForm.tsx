@@ -13,6 +13,7 @@ interface RequestModalFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (request: EngineerRequest) => void;
+  onDelete?: (id: string) => void;
   initialData?: EngineerRequest | null;
   projects: Project[];
   preselectedProjectId?: string;
@@ -22,6 +23,7 @@ export const RequestModalForm: React.FC<RequestModalFormProps> = ({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   initialData,
   projects,
   preselectedProjectId
@@ -362,12 +364,30 @@ export const RequestModalForm: React.FC<RequestModalFormProps> = ({
               <p className="text-xs text-slate-400">LUMENCRAFT SERVICE REQUEST & JOB TRACKING</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            {initialData && onDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`ยืนยันการลบใบคำขอ ${formData.documentNo} ออกจากระบบและ Firebase หรือไม่?`)) {
+                    onDelete(formData.id);
+                    onClose();
+                  }
+                }}
+                className="px-3 py-1.5 text-xs font-bold text-rose-400 hover:text-white bg-rose-950/60 hover:bg-rose-600 rounded-xl transition-colors border border-rose-800 flex items-center gap-1.5"
+                title="ลบคำขอนี้ออกจากระบบและ Firebase"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">ลบคำขอนี้</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         {/* Tab Navigation */}
@@ -1543,20 +1563,37 @@ export const RequestModalForm: React.FC<RequestModalFormProps> = ({
 
           {/* Sticky Modal Footer */}
           <div className="px-6 sm:px-8 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
-            <div className="text-xs text-slate-500 hidden sm:block">
-              * ข้อมูลจะถูกบันทึกตามมาตรฐาน Lumencraft Service Form พร้อมอัปเดตตารางงานและประวัติโครงการ
+            <div className="flex items-center gap-2">
+              {initialData && onDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`ยืนยันการลบใบคำขอ ${formData.documentNo} ออกจากระบบอย่างถาวรหรือไม่?`)) {
+                      onDelete(formData.id);
+                      onClose();
+                    }
+                  }}
+                  className="px-3.5 py-2 text-xs font-semibold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>ลบคำขอนี้ (Delete)</span>
+                </button>
+              )}
+              <span className="text-xs text-slate-500 hidden md:inline">
+                * ข้อมูลจะถูกบันทึกและซิงก์ลง Firebase Cloud Database แบบเรียลไทม์
+              </span>
             </div>
             <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition-colors"
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
               >
                 ยกเลิก (Cancel)
               </button>
               <button
                 type="submit"
-                className="px-6 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors flex items-center gap-2 shadow-sm"
+                className="px-6 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
               >
                 <Save className="w-4 h-4" />
                 <span>บันทึกข้อมูลคำขอ (Save Request)</span>
